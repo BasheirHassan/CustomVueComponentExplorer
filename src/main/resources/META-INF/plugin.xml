@@ -1,0 +1,36 @@
+<idea-plugin>
+    <id>com.customvue.componentexplorer</id>
+    <name>Custom Vue Component Explorer</name>
+    <vendor>Custom Vue Component Explorer</vendor>
+
+    <description><![CDATA[
+        <p>Displays a live list of the custom Vue components of the current project.</p>
+        <ul>
+            <li>Scans every <code>.vue</code> single file component and detects its declared name.</li>
+            <li>Detects globally registered components and custom web elements.</li>
+            <li>Counts how many times each component is used inside templates.</li>
+            <li>Navigate to the declaration or copy the tag name directly from the list.</li>
+        </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Custom Vue Component Explorer"
+                    anchor="bottom"
+                    icon="AllIcons.Toolwindows.ToolWindowStructure"
+                    factoryClass="com.customvue.componentexplorer.ui.CustomVueComponentExplorerToolWindowFactory"/>
+
+        <projectService serviceImplementation="com.customvue.componentexplorer.service.CustomVueComponentExplorerService"/>
+    </extensions>
+
+    <actions>
+        <action id="CustomVueComponentExplorer.ShowToolWindow"
+                class="com.customvue.componentexplorer.actions.ShowToolWindowAction"
+                text="Custom Vue Component Explorer"
+                description="Shows the custom Vue components of the file that is currently open">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
