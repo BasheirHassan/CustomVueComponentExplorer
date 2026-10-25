@@ -1,6 +1,8 @@
 package com.customvue.componentexplorer.ui;
 
 import com.intellij.icons.AllIcons;
+import com.intellij.find.FindModel;
+import com.intellij.find.findInProject.FindInProjectManager;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
@@ -61,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * The content of the <em>Custom Vue Component Explorer</em> tool window.
@@ -210,6 +213,30 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
                     navigateToSelectedComponent();
                 }
             }
+
+            @Override
+            public void mousePressed(@NotNull MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    selectRowAt(event);
+                }
+            }
+
+            @Override
+            public void mouseReleased(@NotNull MouseEvent event) {
+                if (event.isPopupTrigger()) {
+                    selectRowAt(event);
+                }
+            }
+
+            /** Makes the context menu act on the row that was right-clicked. */
+            private void selectRowAt(@NotNull MouseEvent event) {
+                int row = myTable.rowAtPoint(event.getPoint());
+                if (row >= 0) {
+                    myTable.setRowSelectionInterval(row, row);
+                } else {
+                    myTable.clearSelection();
+                }
+            }
         });
 
         JBScrollPane scrollPane = new JBScrollPane(myTable);
@@ -248,6 +275,12 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         JMenuItem open = new JMenuItem(CustomVueComponentExplorerBundle.message("action.openInEditor"));
         open.addActionListener(event -> navigateToSelectedComponent());
         popup.add(open);
+
+        JMenuItem searchInProject = new JMenuItem(CustomVueComponentExplorerBundle.message("action.searchInProject"));
+        searchInProject.addActionListener(event -> searchSelectionInProject());
+        popup.add(searchInProject);
+
+        popup.addSeparator();
 
         JMenuItem copyTag = new JMenuItem(CustomVueComponentExplorerBundle.message("action.copyTag"));
         copyTag.addActionListener(event -> copyTagOfSelection());
@@ -360,6 +393,36 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
             return;
         }
         new OpenFileDescriptor(myProject, row.getTargetFile(), row.getTargetLine(), 0).navigate(true);
+    }
+
+    /**
+     * Searches the selected component in the whole project.
+     *
+     * <p>Both the declared name and the kebab-case tag are searched, because Vue templates accept
+     * both forms ({@code <AppButton>} and {@code <app-button>}). The results are shown in the
+     * standard <em>Find</em> tool window.</p>
+     */
+    public void searchSelectionInProject() {
+        VueComponentRow row = getSelectedRow();
+        if (row == null) {
+            return;
+        }
+
+        FindModel model = new FindModel();
+        model.setStringToFind(buildComponentSearchPattern(row.getComponent()));
+        model.setRegularExpressions(true);
+        model.setCaseSensitive(false);
+        model.setWholeWordsOnly(false);
+        model.setMultiline(false);
+        model.setCustomScope(false);
+        model.setProjectScope(true);
+        model.setSearchInProjectFiles(true);
+        FindInProjectManager.getInstance(myProject).findInPath(model);
+    }
+
+    private static @NotNull String buildComponentSearchPattern(@NotNull VueComponentInfo component) {
+        return "\\b(?:" + Pattern.quote(component.getName())
+                + '|' + Pattern.quote(component.getTag()) + ")\\b";
     }
 
     public void copyTagOfSelection() {

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.customvue.componentexplorer"
-version = "1.0.1"
+version = "1.1.0"
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -56,6 +56,7 @@ intellijPlatform {
                     (<code>customElements.define(...)</code>).</li>
                 <li>Counts how many times each component is used inside templates.</li>
                 <li>Navigate to the declaration, copy the tag name or the file path directly from the list.</li>
+                <li>Searches the selected component in the whole project from the context menu.</li>
             </ul>
         """
 
