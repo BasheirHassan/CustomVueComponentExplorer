@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.customvue.componentexplorer"
-version = "1.2.0"
+version = "1.3.0"
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -57,7 +57,7 @@ intellijPlatform {
                 <li>Counts how many times each component is used inside templates.</li>
                 <li>Navigate to the declaration, copy the tag name or the file path directly from the list.</li>
                 <li>Searches the selected component in the whole project from the context menu.</li>
-                <li>Searches component usages that contain or do not contain a chosen attribute.</li>
+                <li>Searches component usages with multiple attribute conditions, each matching or excluding an attribute.</li>
             </ul>
         """
 

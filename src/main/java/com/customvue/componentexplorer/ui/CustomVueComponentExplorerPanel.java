@@ -417,7 +417,8 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
     }
 
     /**
-     * Asks for an attribute condition and searches the selected component in the whole project.
+     * Asks for one or more attribute conditions and searches the selected component in the whole
+     * project.
      */
     public void searchSelectionByAttribute() {
         VueComponentRow row = getSelectedRow();
@@ -432,8 +433,13 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
             return;
         }
 
-        FindModel model = createFindModel(buildAttributeSearchPattern(component,
-                dialog.getAttributeName(), dialog.isContainsAttribute()));
+        List<ComponentAttributeSearchDialog.SearchCondition> conditions = dialog.getConditions();
+        if (conditions.isEmpty()) {
+            return;
+        }
+        FindModel model = createFindModel(
+                buildAttributeSearchPattern(component.getName(), component.getTag(),
+                        conditions, dialog.isMatchAll()));
         FindInProjectManager.getInstance(myProject).findInPath(model);
     }
 
@@ -456,23 +462,50 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
     }
 
     /**
-     * Builds a pattern that matches the opening tags of the component with or without the given
-     * attribute. The attribute may be written in any of its Vue forms, e.g. {@code :disabled} or
-     * {@code v-bind:disabled}.
+     * Builds a pattern that matches the opening tags of the component whose attributes satisfy all
+     * or any of the given conditions. Attributes may be written in any of their Vue forms, e.g.
+     * {@code :disabled} or {@code v-bind:disabled}.
      */
-    private static @NotNull String buildAttributeSearchPattern(@NotNull VueComponentInfo component,
-                                                               @NotNull String attribute,
-                                                               boolean contains) {
-        String tag = "<(?:" + Pattern.quote(component.getName())
-                + '|' + Pattern.quote(component.getTag()) + ")(?=[\\s/>])";
-        String attributePattern = "(?<!\\S)(?::|v-bind:|@|v-on:|#|v-slot:)?"
-                + Pattern.quote(attribute) + "(?=[\\s=/>.])";
+    static @NotNull String buildAttributeSearchPattern(
+            @NotNull String name,
+            @NotNull String tagName,
+            @NotNull List<ComponentAttributeSearchDialog.SearchCondition> conditions,
+            boolean matchAll) {
+        String tag = "<(?:" + Pattern.quote(name)
+                + '|' + Pattern.quote(tagName) + ")(?=[\\s/>])";
         // Everything inside the opening tag, including quoted values that contain a '>'.
         String body = "(?:[^>\"']|\"[^\"]*\"|'[^']*')*";
-        if (contains) {
-            return tag + body + attributePattern + body + ">";
+
+        if (matchAll) {
+            StringBuilder pattern = new StringBuilder(tag);
+            for (ComponentAttributeSearchDialog.SearchCondition condition : conditions) {
+                String attribute = buildAttributePattern(condition.attribute());
+                pattern.append(condition.contains() ? "(?=" + body + attribute + ")"
+                        : "(?!" + body + attribute + ")");
+            }
+            return pattern.append(body).append('>').toString();
         }
-        return tag + "(?!" + body + attributePattern + ")" + body + ">";
+
+        StringBuilder pattern = new StringBuilder("(?:");
+        for (int i = 0; i < conditions.size(); i++) {
+            ComponentAttributeSearchDialog.SearchCondition condition = conditions.get(i);
+            if (i > 0) {
+                pattern.append('|');
+            }
+            String attribute = buildAttributePattern(condition.attribute());
+            if (condition.contains()) {
+                pattern.append(tag).append(body).append(attribute).append(body).append('>');
+            } else {
+                pattern.append(tag).append("(?!").append(body).append(attribute).append(')')
+                        .append(body).append('>');
+            }
+        }
+        return pattern.append(')').toString();
+    }
+
+    private static @NotNull String buildAttributePattern(@NotNull String attribute) {
+        return "(?<!\\S)(?::|v-bind:|@|v-on:|#|v-slot:)?"
+                + Pattern.quote(attribute) + "(?=[\\s=/>.])";
     }
 
     public void copyTagOfSelection() {
