@@ -2,6 +2,7 @@ package com.customvue.componentexplorer.scan;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,29 +17,39 @@ import java.util.Set;
 public final class ParsedFile {
 
     /** An empty result, used for files that cannot be parsed. */
-    public static final ParsedFile EMPTY = new ParsedFile(List.of(), Map.of(), Map.of(), Map.of());
+    public static final ParsedFile EMPTY = new ParsedFile(List.of(), Map.of(), Map.of());
 
     private final @NotNull List<ComponentDeclaration> myDeclarations;
     private final @NotNull Map<String, Integer> myTagUsages;
     private final @NotNull Map<String, List<Integer>> myTagLines;
+    private final @NotNull Map<String, List<TagUsage>> myTagOccurrences;
     private final @NotNull Map<String, Integer> myImportLines;
 
     public ParsedFile(@NotNull List<ComponentDeclaration> declarations,
-                      @NotNull Map<String, Integer> tagUsages,
-                      @NotNull Map<String, List<Integer>> tagLines,
+                      @NotNull Map<String, List<TagUsage>> tagOccurrences,
                       @NotNull Map<String, Integer> importLines) {
         myDeclarations = Collections.unmodifiableList(declarations);
-        myTagUsages = Collections.unmodifiableMap(new LinkedHashMap<>(tagUsages));
-        myTagLines = Collections.unmodifiableMap(copyLines(tagLines));
         myImportLines = Collections.unmodifiableMap(new LinkedHashMap<>(importLines));
-    }
 
-    private static @NotNull Map<String, List<Integer>> copyLines(@NotNull Map<String, List<Integer>> lines) {
-        Map<String, List<Integer>> copy = new LinkedHashMap<>(lines.size());
-        for (Map.Entry<String, List<Integer>> entry : lines.entrySet()) {
-            copy.put(entry.getKey(), List.copyOf(entry.getValue()));
+        Map<String, List<TagUsage>> occurrences = new LinkedHashMap<>(tagOccurrences.size());
+        Map<String, Integer> usages = new LinkedHashMap<>(tagOccurrences.size());
+        Map<String, List<Integer>> lines = new LinkedHashMap<>(tagOccurrences.size());
+        for (Map.Entry<String, List<TagUsage>> entry : tagOccurrences.entrySet()) {
+            List<TagUsage> copied = List.copyOf(entry.getValue());
+            occurrences.put(entry.getKey(), copied);
+            usages.put(entry.getKey(), copied.size());
+
+            List<Integer> tagLines = new ArrayList<>();
+            for (TagUsage usage : copied) {
+                if (tagLines.isEmpty() || tagLines.get(tagLines.size() - 1) != usage.getLine()) {
+                    tagLines.add(usage.getLine());
+                }
+            }
+            lines.put(entry.getKey(), List.copyOf(tagLines));
         }
-        return copy;
+        myTagOccurrences = Collections.unmodifiableMap(occurrences);
+        myTagUsages = Collections.unmodifiableMap(usages);
+        myTagLines = Collections.unmodifiableMap(lines);
     }
 
     public @NotNull List<ComponentDeclaration> getDeclarations() {
@@ -53,6 +64,11 @@ public final class ParsedFile {
     /** Maps a kebab-case tag to all lines on which it is used inside the file. */
     public @NotNull Map<String, List<Integer>> getTagLines() {
         return myTagLines;
+    }
+
+    /** Maps a kebab-case tag to every place it is used inside the file, including its attributes. */
+    public @NotNull Map<String, List<TagUsage>> getTagOccurrences() {
+        return myTagOccurrences;
     }
 
     /** Maps a local name to the line of the import statement that brings it in. */

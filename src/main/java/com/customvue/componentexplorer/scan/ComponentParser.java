@@ -6,8 +6,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,8 +92,7 @@ public final class ComponentParser {
         }
 
         return new ParsedFile(declarations,
-                collectTagUsages(text, 0, text.length()),
-                collectTagLines(text, 0, text.length()),
+                collectTagOccurrences(text, 0, text.length()),
                 collectImports(text, 0, text.length()));
     }
 
@@ -102,8 +103,7 @@ public final class ComponentParser {
         List<ComponentDeclaration> declarations = new ArrayList<>();
         collectRegistrations(text, 0, text.length(), declarations, true);
         return new ParsedFile(declarations,
-                collectTagUsages(text, 0, text.length()),
-                collectTagLines(text, 0, text.length()),
+                collectTagOccurrences(text, 0, text.length()),
                 collectImports(text, 0, text.length()));
     }
 
@@ -438,44 +438,116 @@ public final class ComponentParser {
     }
 
     /**
-     * Counts how often every tag is used inside the given region and remembers every line it is
-     * used on. Multiple usages on the same line are stored once.
+     * Collects every tag occurrence inside the given region together with its attributes and the
+     * line it starts on. Multiple usages on the same line are kept separately.
      */
-    private static void collectTags(@NotNull String text,
-                                    int start,
-                                    int end,
-                                    @NotNull Map<String, Integer> counts,
-                                    @NotNull Map<String, List<Integer>> lines) {
+    private static @NotNull Map<String, List<TagUsage>> collectTagOccurrences(@NotNull String text,
+                                                                             int start,
+                                                                             int end) {
+        Map<String, List<TagUsage>> occurrences = new LinkedHashMap<>();
         Matcher matcher = TAG_USAGE.matcher(text);
         matcher.region(start, end);
         LineTracker tracker = new LineTracker(text);
         while (matcher.find()) {
             String tag = toKebabCase(matcher.group(1));
-            counts.merge(tag, 1, Integer::sum);
-            List<Integer> tagLines = lines.computeIfAbsent(tag, key -> new ArrayList<>());
             int line = tracker.lineAt(matcher.start());
-            if (tagLines.isEmpty() || tagLines.get(tagLines.size() - 1) != line) {
-                tagLines.add(line);
+            Set<String> attributes = readAttributes(text, matcher.end(), end);
+            occurrences.computeIfAbsent(tag, key -> new ArrayList<>())
+                    .add(new TagUsage(line, attributes));
+        }
+        return occurrences;
+    }
+
+    /**
+     * Reads the attribute names of the opening tag that starts right after the tag name.
+     */
+    private static @NotNull Set<String> readAttributes(@NotNull String text, int start, int end) {
+        Set<String> attributes = new LinkedHashSet<>();
+        int index = start;
+        while (index < end) {
+            char c = text.charAt(index);
+            if (c == '>' || c == '<') {
+                break;
+            }
+            if (Character.isWhitespace(c) || c == '/') {
+                index++;
+                continue;
+            }
+
+            int nameStart = index;
+            while (index < end) {
+                char current = text.charAt(index);
+                if (Character.isWhitespace(current) || current == '=' || current == '/' || current == '>') {
+                    break;
+                }
+                index++;
+            }
+            if (index == nameStart) {
+                index++;
+                continue;
+            }
+
+            String attribute = normalizeAttributeName(text.substring(nameStart, index));
+            if (!attribute.isEmpty()) {
+                attributes.add(attribute);
+            }
+
+            while (index < end && Character.isWhitespace(text.charAt(index))) {
+                index++;
+            }
+            if (index >= end || text.charAt(index) != '=') {
+                continue;
+            }
+
+            index++;
+            while (index < end && Character.isWhitespace(text.charAt(index))) {
+                index++;
+            }
+            if (index >= end) {
+                break;
+            }
+
+            char quote = text.charAt(index);
+            if (quote == '\'' || quote == '"') {
+                index++;
+                while (index < end && text.charAt(index) != quote) {
+                    index++;
+                }
+                if (index < end) {
+                    index++;
+                }
+            } else {
+                while (index < end) {
+                    char current = text.charAt(index);
+                    if (Character.isWhitespace(current) || current == '>' || current == '/') {
+                        break;
+                    }
+                    index++;
+                }
             }
         }
+        return attributes;
     }
 
     /**
-     * Counts how often every tag is used inside the given region.
+     * Removes the common Vue binding prefixes so {@code :disabled}, {@code v-bind:disabled} and
+     * {@code disabled} are treated as the same attribute.
      */
-    private static @NotNull Map<String, Integer> collectTagUsages(@NotNull String text, int start, int end) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        collectTags(text, start, end, counts, new LinkedHashMap<>());
-        return counts;
-    }
-
-    /**
-     * Remembers every line on which a tag is used inside the given region.
-     */
-    private static @NotNull Map<String, List<Integer>> collectTagLines(@NotNull String text, int start, int end) {
-        Map<String, List<Integer>> lines = new LinkedHashMap<>();
-        collectTags(text, start, end, new LinkedHashMap<>(), lines);
-        return lines;
+    public static @NotNull String normalizeAttributeName(@NotNull String name) {
+        name = name.trim();
+        if (name.startsWith("v-bind:")) {
+            return name.substring("v-bind:".length());
+        }
+        if (name.startsWith("v-on:")) {
+            return name.substring("v-on:".length());
+        }
+        if (name.startsWith("v-slot:")) {
+            return name.substring("v-slot:".length());
+        }
+        if (name.startsWith(":") || name.startsWith("@") || name.startsWith("#")) {
+            return name.substring(1);
+        }
+        return name;
     }
 
     /**

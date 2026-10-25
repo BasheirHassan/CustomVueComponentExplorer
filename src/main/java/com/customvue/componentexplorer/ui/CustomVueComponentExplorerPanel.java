@@ -280,6 +280,10 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         searchInProject.addActionListener(event -> searchSelectionInProject());
         popup.add(searchInProject);
 
+        JMenuItem searchByAttribute = new JMenuItem(CustomVueComponentExplorerBundle.message("action.searchByAttribute"));
+        searchByAttribute.addActionListener(event -> searchSelectionByAttribute());
+        popup.add(searchByAttribute);
+
         popup.addSeparator();
 
         JMenuItem copyTag = new JMenuItem(CustomVueComponentExplorerBundle.message("action.copyTag"));
@@ -408,8 +412,34 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
             return;
         }
 
+        FindModel model = createFindModel(buildComponentSearchPattern(row.getComponent()));
+        FindInProjectManager.getInstance(myProject).findInPath(model);
+    }
+
+    /**
+     * Asks for an attribute condition and searches the selected component in the whole project.
+     */
+    public void searchSelectionByAttribute() {
+        VueComponentRow row = getSelectedRow();
+        if (row == null) {
+            return;
+        }
+
+        VueComponentInfo component = row.getComponent();
+        ComponentAttributeSearchDialog dialog = new ComponentAttributeSearchDialog(
+                myProject, component, myService.getAttributesFor(component));
+        if (!dialog.showAndGet()) {
+            return;
+        }
+
+        FindModel model = createFindModel(buildAttributeSearchPattern(component,
+                dialog.getAttributeName(), dialog.isContainsAttribute()));
+        FindInProjectManager.getInstance(myProject).findInPath(model);
+    }
+
+    private @NotNull FindModel createFindModel(@NotNull String pattern) {
         FindModel model = new FindModel();
-        model.setStringToFind(buildComponentSearchPattern(row.getComponent()));
+        model.setStringToFind(pattern);
         model.setRegularExpressions(true);
         model.setCaseSensitive(false);
         model.setWholeWordsOnly(false);
@@ -417,12 +447,32 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         model.setCustomScope(false);
         model.setProjectScope(true);
         model.setSearchInProjectFiles(true);
-        FindInProjectManager.getInstance(myProject).findInPath(model);
+        return model;
     }
 
     private static @NotNull String buildComponentSearchPattern(@NotNull VueComponentInfo component) {
-        return "\\b(?:" + Pattern.quote(component.getName())
-                + '|' + Pattern.quote(component.getTag()) + ")\\b";
+        return "(?<![\\w-])(?:" + Pattern.quote(component.getName())
+                + '|' + Pattern.quote(component.getTag()) + ")(?![\\w-])";
+    }
+
+    /**
+     * Builds a pattern that matches the opening tags of the component with or without the given
+     * attribute. The attribute may be written in any of its Vue forms, e.g. {@code :disabled} or
+     * {@code v-bind:disabled}.
+     */
+    private static @NotNull String buildAttributeSearchPattern(@NotNull VueComponentInfo component,
+                                                               @NotNull String attribute,
+                                                               boolean contains) {
+        String tag = "<(?:" + Pattern.quote(component.getName())
+                + '|' + Pattern.quote(component.getTag()) + ")(?=[\\s/>])";
+        String attributePattern = "(?<!\\S)(?::|v-bind:|@|v-on:|#|v-slot:)?"
+                + Pattern.quote(attribute) + "(?=[\\s=/>.])";
+        // Everything inside the opening tag, including quoted values that contain a '>'.
+        String body = "(?:[^>\"']|\"[^\"]*\"|'[^']*')*";
+        if (contains) {
+            return tag + body + attributePattern + body + ">";
+        }
+        return tag + "(?!" + body + attributePattern + ")" + body + ">";
     }
 
     public void copyTagOfSelection() {

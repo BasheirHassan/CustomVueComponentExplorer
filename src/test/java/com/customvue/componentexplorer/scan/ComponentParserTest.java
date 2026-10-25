@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -195,6 +196,52 @@ class ComponentParserTest {
 
         assertEquals(List.of(2), parsed.getTagLines().get("app-button"));
         assertEquals(2, parsed.getTagUsages().get("app-button"));
+    }
+
+    @Test
+    void collectsTheAttributesOfEveryTagUsage() {
+        ParsedFile parsed = ComponentParser.parseVueFile("app", """
+                <template>
+                  <AppButton label="Primary" primary :disabled="flag" @click.stop="go" />
+                  <app-button label="Secondary" />
+                </template>
+                """);
+
+        List<TagUsage> usages = parsed.getTagOccurrences().get("app-button");
+        assertEquals(2, usages.size());
+        assertEquals(Set.of("label", "primary", "disabled", "click.stop"), usages.get(0).getAttributes());
+        assertEquals(Set.of("label"), usages.get(1).getAttributes());
+        assertEquals(2, usages.get(0).getLine());
+        assertEquals(3, usages.get(1).getLine());
+    }
+
+    @Test
+    void readsAttributesAcrossLinesAndIgnoresValues() {
+        ParsedFile parsed = ComponentParser.parseVueFile("app", """
+                <template>
+                  <UserCard
+                    :user-name="a > b"
+                    v-bind:role="role"
+                    @select="onSelect"
+                  />
+                </template>
+                """);
+
+        List<TagUsage> usages = parsed.getTagOccurrences().get("user-card");
+        assertEquals(1, usages.size());
+        assertEquals(2, usages.get(0).getLine());
+        assertEquals(Set.of("user-name", "role", "select"), usages.get(0).getAttributes());
+    }
+
+    @Test
+    void storesAnEmptyAttributeSetForTagsWithoutAttributes() {
+        ParsedFile parsed = ComponentParser.parseVueFile("app", """
+                <template>
+                  <UserCard />
+                </template>
+                """);
+
+        assertTrue(parsed.getTagOccurrences().get("user-card").get(0).getAttributes().isEmpty());
     }
 
     @Test

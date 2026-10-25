@@ -82,7 +82,6 @@ public final class CustomVueComponentExplorerService implements Disposable {
     public @NotNull List<VueComponentRow> getRowsFor(@Nullable VirtualFile openFile) {
         List<VueComponentInfo> components = myComponents;
         ParsedFile openParsed = openFile == null ? null : myScanner.getParsedFile(openFile);
-
         List<VueComponentRow> rows = new ArrayList<>(components.size());
         for (VueComponentInfo component : components) {
             ComponentRelation relation = getRelation(component, openFile, openParsed);
@@ -111,6 +110,14 @@ public final class CustomVueComponentExplorerService implements Disposable {
         rows.sort(Comparator.comparingInt((VueComponentRow row) -> row.getRelation().getPriority())
                 .thenComparing(row -> row.getComponent().getName(), String.CASE_INSENSITIVE_ORDER));
         return rows;
+    }
+
+    /**
+     * All attributes that are used on the given component anywhere in the project. They are used to
+     * populate the attribute filter of the project wide search.
+     */
+    public @NotNull List<String> getAttributesFor(@NotNull VueComponentInfo component) {
+        return myScanner.getAttributesForTag(component.getTag());
     }
 
     private static @NotNull ComponentRelation getRelation(@NotNull VueComponentInfo component,

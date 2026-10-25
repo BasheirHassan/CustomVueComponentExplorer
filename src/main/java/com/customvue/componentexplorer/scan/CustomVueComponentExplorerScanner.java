@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Scans the project for custom Vue components.
@@ -111,6 +112,25 @@ public final class CustomVueComponentExplorerScanner {
      */
     public synchronized void invalidate(@NotNull VirtualFile file) {
         myCache.remove(file.getUrl());
+    }
+
+    /**
+     * Collects every attribute that is written on the given tag anywhere in the project. The
+     * attributes are normalized the same way as the parser does it (binding prefixes removed) and
+     * sorted case insensitively.
+     */
+    public synchronized @NotNull List<String> getAttributesForTag(@NotNull String tag) {
+        Set<String> attributes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (CachedFile cached : myCache.values()) {
+            List<TagUsage> usages = cached.getParsedFile().getTagOccurrences().get(tag);
+            if (usages == null) {
+                continue;
+            }
+            for (TagUsage usage : usages) {
+                attributes.addAll(usage.getAttributes());
+            }
+        }
+        return new ArrayList<>(attributes);
     }
 
     /**
