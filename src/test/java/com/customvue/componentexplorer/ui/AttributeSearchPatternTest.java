@@ -19,6 +19,15 @@ class AttributeSearchPatternTest {
             <AppButton title="my primary thing" />
             """;
 
+    private static final String VALUE_TEXT = """
+            <AppButton size="small" />
+            <AppButton :size="'small'" />
+            <AppButton v-bind:size="model.value" />
+            <AppButton size="large" />
+            <AppButton title="size=small" />
+            <AppButton size="a+b*c" />
+            """;
+
     @Test
     void matchesTagsThatContainAllAttributesInAnyVueForm() {
         String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
@@ -64,6 +73,54 @@ class AttributeSearchPatternTest {
     }
 
     @Test
+    void matchesStaticAndBoundAttributeValues() {
+        String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
+                "AppButton", "app-button",
+                List.of(new SearchCondition("size", "small", true)), true);
+
+        assertEquals(List.of(
+                        "<AppButton size=\"small\" />",
+                        "<AppButton :size=\"'small'\" />"),
+                matches(pattern, VALUE_TEXT));
+    }
+
+    @Test
+    void matchesValuesThatContainTheTypedText() {
+        String text = """
+                <AppButton :size="model.size === 'small' ? 'sm' : 'md'" />
+                <AppButton size="smallish" />
+                """;
+        String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
+                "AppButton", "app-button",
+                List.of(new SearchCondition("size", "small", true)), true);
+
+        assertEquals(text.lines().toList(), matches(pattern, text));
+    }
+
+    @Test
+    void excludesTagsThatContainTheAttributeWithTheExcludedValue() {
+        String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
+                "AppButton", "app-button",
+                List.of(new SearchCondition("size", "small", false)), true);
+
+        assertEquals(List.of(
+                        "<AppButton v-bind:size=\"model.value\" />",
+                        "<AppButton size=\"large\" />",
+                        "<AppButton title=\"size=small\" />",
+                        "<AppButton size=\"a+b*c\" />"),
+                matches(pattern, VALUE_TEXT));
+    }
+
+    @Test
+    void matchesValuesWithRegularExpressionCharacters() {
+        String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
+                "AppButton", "app-button",
+                List.of(new SearchCondition("size", "a+b*c", true)), true);
+
+        assertEquals(List.of("<AppButton size=\"a+b*c\" />"), matches(pattern, VALUE_TEXT));
+    }
+
+    @Test
     void matchesTheKebabCaseTagAsWell() {
         String pattern = CustomVueComponentExplorerPanel.buildAttributeSearchPattern(
                 "AppButton", "app-button",
@@ -73,7 +130,11 @@ class AttributeSearchPatternTest {
     }
 
     private static List<String> matches(String pattern) {
-        return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(TEXT)
+        return matches(pattern, TEXT);
+    }
+
+    private static List<String> matches(String pattern, String text) {
+        return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(text)
                 .results()
                 .map(match -> match.group())
                 .toList();

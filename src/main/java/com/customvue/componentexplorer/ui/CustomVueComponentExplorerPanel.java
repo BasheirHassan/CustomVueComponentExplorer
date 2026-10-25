@@ -440,6 +440,14 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         FindModel model = createFindModel(
                 buildAttributeSearchPattern(component.getName(), component.getTag(),
                         conditions, dialog.isMatchAll()));
+        String directory = dialog.getSearchDirectory();
+        if (!directory.isEmpty()) {
+            model.setProjectScope(false);
+            model.setCustomScope(false);
+            model.setModuleName(null);
+            model.setDirectoryName(directory);
+            model.setWithSubdirectories(true);
+        }
         FindInProjectManager.getInstance(myProject).findInPath(model);
     }
 
@@ -479,7 +487,7 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         if (matchAll) {
             StringBuilder pattern = new StringBuilder(tag);
             for (ComponentAttributeSearchDialog.SearchCondition condition : conditions) {
-                String attribute = buildAttributePattern(condition.attribute());
+                String attribute = buildAttributePattern(condition);
                 pattern.append(condition.contains() ? "(?=" + body + attribute + ")"
                         : "(?!" + body + attribute + ")");
             }
@@ -492,7 +500,7 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
             if (i > 0) {
                 pattern.append('|');
             }
-            String attribute = buildAttributePattern(condition.attribute());
+            String attribute = buildAttributePattern(condition);
             if (condition.contains()) {
                 pattern.append(tag).append(body).append(attribute).append(body).append('>');
             } else {
@@ -503,9 +511,23 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         return pattern.append(')').toString();
     }
 
-    private static @NotNull String buildAttributePattern(@NotNull String attribute) {
-        return "(?<!\\S)(?::|v-bind:|@|v-on:|#|v-slot:)?"
-                + Pattern.quote(attribute) + "(?=[\\s=/>.])";
+    /**
+     * Builds the pattern of one condition. Without a value it matches the attribute name in any of
+     * its Vue forms. With a value it matches the attribute together with a quoted value that
+     * contains the given text, which covers static values and expressions such as
+     * {@code :size="'small'"}.
+     */
+    private static @NotNull String buildAttributePattern(
+            @NotNull ComponentAttributeSearchDialog.SearchCondition condition) {
+        String attribute = "(?<!\\S)(?::|v-bind:|@|v-on:|#|v-slot:)?"
+                + Pattern.quote(condition.attribute());
+        if (condition.value().isEmpty()) {
+            return attribute + "(?=[\\s=/>.])";
+        }
+
+        String quotedValue = Pattern.quote(condition.value());
+        String value = "(?:\"[^\"]*" + quotedValue + "[^\"]*\"|'[^']*" + quotedValue + "[^']*')";
+        return attribute + "\\s*=\\s*" + value;
     }
 
     public void copyTagOfSelection() {
