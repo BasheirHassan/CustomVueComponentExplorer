@@ -56,8 +56,10 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -197,6 +199,7 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         configureColumn(CustomVueComponentExplorerTableModel.COLUMN_TAG, 130, null);
         configureColumn(CustomVueComponentExplorerTableModel.COLUMN_KIND, 110, null);
         configureColumn(CustomVueComponentExplorerTableModel.COLUMN_LOCATION, 220, new LocationRenderer());
+        configureColumn(CustomVueComponentExplorerTableModel.COLUMN_LINE, 55, new LineRenderer());
         configureColumn(CustomVueComponentExplorerTableModel.COLUMN_USAGES, 80, null);
         configureColumn(CustomVueComponentExplorerTableModel.COLUMN_RELATION, 130, new RelationRenderer());
 
@@ -266,21 +269,31 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
     private void applyFilter() {
         String query = mySearchField.getText().trim().toLowerCase(Locale.ROOT);
         List<VueComponentRow> visible = new ArrayList<>();
-        int relevant = 0;
 
         for (VueComponentRow row : myRows) {
-            if (isRelevant(row)) {
-                relevant++;
-                if (query.isEmpty() || matches(row, query)) {
-                    visible.add(row);
-                }
+            if (isRelevant(row) && (query.isEmpty() || matches(row, query))) {
+                visible.add(row);
             }
         }
 
         myModel.setRows(visible);
         myCardLayout.show(myCenter, visible.isEmpty() ? CARD_EMPTY : CARD_TABLE);
-        updateStatus(visible.size(), relevant);
+        updateStatus(countComponents(visible), countComponents(myRows));
         updateToolWindowTitle();
+    }
+
+    /**
+     * Counts the distinct components behind the given rows. A component that is used several times
+     * inside the open page contributes several rows but is still a single component.
+     */
+    private static int countComponents(@NotNull List<VueComponentRow> rows) {
+        Set<String> components = new HashSet<>();
+        for (VueComponentRow row : rows) {
+            VueComponentInfo component = row.getComponent();
+            components.add(component.getFile().getPath() + '#' + component.getKind()
+                    + '#' + component.getName() + '#' + component.getLine());
+        }
+        return components.size();
     }
 
     /**
@@ -303,19 +316,18 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
                 || myModel.getRelativePath(component).toLowerCase(Locale.ROOT).contains(query);
     }
 
-    private void updateStatus(int visibleCount, int relevantCount) {
-        int total = myRows.size();
+    private void updateStatus(int visibleCount, int totalCount) {
         String text;
         if (myService.isScanning()) {
             text = CustomVueComponentExplorerBundle.message("status.scanning");
-        } else if (total == 0) {
+        } else if (totalCount == 0) {
             text = CustomVueComponentExplorerBundle.message("status.empty");
         } else if (myOpenFile == null) {
-            text = CustomVueComponentExplorerBundle.message("status.count", total);
-        } else if (visibleCount == total) {
-            text = CustomVueComponentExplorerBundle.message("status.count", total);
+            text = CustomVueComponentExplorerBundle.message("status.count", totalCount);
+        } else if (visibleCount == totalCount) {
+            text = CustomVueComponentExplorerBundle.message("status.count", totalCount);
         } else {
-            text = CustomVueComponentExplorerBundle.message("status.filtered", visibleCount, total);
+            text = CustomVueComponentExplorerBundle.message("status.filtered", visibleCount, totalCount);
         }
         myStatusLabel.setText(text);
     }
@@ -394,6 +406,27 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
                     label.setToolTipText(CustomVueComponentExplorerBundle.message("tooltip.jumpTo",
                             componentRow.getTargetFile().getName(), componentRow.getTargetLine() + 1));
                 }
+            }
+            return component;
+        }
+    }
+
+    /**
+     * Shows the line of the navigation target. A component that is used several times inside the
+     * open page contributes one row per line.
+     */
+    private static final class LineRenderer extends DefaultTableCellRenderer {
+
+        private LineRenderer() {
+            setHorizontalAlignment(SwingConstants.CENTER);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean selected, boolean focused,
+                                                       int row, int column) {
+            Component component = super.getTableCellRendererComponent(table, value, selected, focused, row, column);
+            if (component instanceof JLabel label) {
+                label.setForeground(selected ? table.getSelectionForeground() : JBColor.GRAY);
             }
             return component;
         }

@@ -20,17 +20,25 @@ public final class ParsedFile {
 
     private final @NotNull List<ComponentDeclaration> myDeclarations;
     private final @NotNull Map<String, Integer> myTagUsages;
-    private final @NotNull Map<String, Integer> myTagLines;
+    private final @NotNull Map<String, List<Integer>> myTagLines;
     private final @NotNull Map<String, Integer> myImportLines;
 
     public ParsedFile(@NotNull List<ComponentDeclaration> declarations,
                       @NotNull Map<String, Integer> tagUsages,
-                      @NotNull Map<String, Integer> tagLines,
+                      @NotNull Map<String, List<Integer>> tagLines,
                       @NotNull Map<String, Integer> importLines) {
         myDeclarations = Collections.unmodifiableList(declarations);
         myTagUsages = Collections.unmodifiableMap(new LinkedHashMap<>(tagUsages));
-        myTagLines = Collections.unmodifiableMap(new LinkedHashMap<>(tagLines));
+        myTagLines = Collections.unmodifiableMap(copyLines(tagLines));
         myImportLines = Collections.unmodifiableMap(new LinkedHashMap<>(importLines));
+    }
+
+    private static @NotNull Map<String, List<Integer>> copyLines(@NotNull Map<String, List<Integer>> lines) {
+        Map<String, List<Integer>> copy = new LinkedHashMap<>(lines.size());
+        for (Map.Entry<String, List<Integer>> entry : lines.entrySet()) {
+            copy.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return copy;
     }
 
     public @NotNull List<ComponentDeclaration> getDeclarations() {
@@ -42,8 +50,8 @@ public final class ParsedFile {
         return myTagUsages;
     }
 
-    /** Maps a kebab-case tag to the first line on which it is used inside the file. */
-    public @NotNull Map<String, Integer> getTagLines() {
+    /** Maps a kebab-case tag to all lines on which it is used inside the file. */
+    public @NotNull Map<String, List<Integer>> getTagLines() {
         return myTagLines;
     }
 

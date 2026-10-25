@@ -75,9 +75,9 @@ public final class CustomVueComponentExplorerService implements Disposable {
      * Builds the rows for the given file: every component of the project together with its relation
      * to that file. The most relevant components come first.
      *
-     * <p>The navigation target of a row points to the place where the component is used inside the
-     * open file. Only components that are not referenced by the open file point to their own
-     * declaration.</p>
+     * <p>A component that is used several times inside the open file produces one row per usage, so
+     * every place gets its own navigation target. Only components that are not referenced by the
+     * open file point to their own declaration.</p>
      */
     public @NotNull List<VueComponentRow> getRowsFor(@Nullable VirtualFile openFile) {
         List<VueComponentInfo> components = myComponents;
@@ -86,26 +86,27 @@ public final class CustomVueComponentExplorerService implements Disposable {
         List<VueComponentRow> rows = new ArrayList<>(components.size());
         for (VueComponentInfo component : components) {
             ComponentRelation relation = getRelation(component, openFile, openParsed);
-            VirtualFile targetFile = component.getFile();
-            int targetLine = Math.max(0, component.getLine() - 1);
 
             if (openFile != null && openParsed != null) {
-                Integer usageLine = openParsed.getTagLines().get(component.getTag());
-                if (usageLine != null) {
-                    // The component is used inside the open page, jump to that place.
-                    targetFile = openFile;
-                    targetLine = Math.max(0, usageLine - 1);
-                } else {
-                    Integer importLine = openParsed.getImportLines().get(component.getName());
-                    if (importLine != null) {
-                        // The component is imported by the open page, jump to the import.
-                        targetFile = openFile;
-                        targetLine = Math.max(0, importLine - 1);
+                List<Integer> usageLines = openParsed.getTagLines().get(component.getTag());
+                if (usageLines != null && !usageLines.isEmpty()) {
+                    // The component is used inside the open page, create a row for every place.
+                    for (Integer usageLine : usageLines) {
+                        rows.add(new VueComponentRow(component, relation, openFile, Math.max(0, usageLine - 1)));
                     }
+                    continue;
+                }
+
+                Integer importLine = openParsed.getImportLines().get(component.getName());
+                if (importLine != null) {
+                    // The component is imported by the open page but not used, jump to the import.
+                    rows.add(new VueComponentRow(component, relation, openFile, Math.max(0, importLine - 1)));
+                    continue;
                 }
             }
 
-            rows.add(new VueComponentRow(component, relation, targetFile, targetLine));
+            rows.add(new VueComponentRow(component, relation,
+                    component.getFile(), Math.max(0, component.getLine() - 1)));
         }
         rows.sort(Comparator.comparingInt((VueComponentRow row) -> row.getRelation().getPriority())
                 .thenComparing(row -> row.getComponent().getName(), String.CASE_INSENSITIVE_ORDER));

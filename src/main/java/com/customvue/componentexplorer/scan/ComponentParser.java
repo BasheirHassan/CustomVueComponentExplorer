@@ -438,20 +438,25 @@ public final class ComponentParser {
     }
 
     /**
-     * Counts how often every tag is used inside the given region and remembers the first line.
+     * Counts how often every tag is used inside the given region and remembers every line it is
+     * used on. Multiple usages on the same line are stored once.
      */
     private static void collectTags(@NotNull String text,
                                     int start,
                                     int end,
                                     @NotNull Map<String, Integer> counts,
-                                    @NotNull Map<String, Integer> lines) {
+                                    @NotNull Map<String, List<Integer>> lines) {
         Matcher matcher = TAG_USAGE.matcher(text);
         matcher.region(start, end);
         LineTracker tracker = new LineTracker(text);
         while (matcher.find()) {
             String tag = toKebabCase(matcher.group(1));
             counts.merge(tag, 1, Integer::sum);
-            lines.putIfAbsent(tag, tracker.lineAt(matcher.start()));
+            List<Integer> tagLines = lines.computeIfAbsent(tag, key -> new ArrayList<>());
+            int line = tracker.lineAt(matcher.start());
+            if (tagLines.isEmpty() || tagLines.get(tagLines.size() - 1) != line) {
+                tagLines.add(line);
+            }
         }
     }
 
@@ -465,10 +470,10 @@ public final class ComponentParser {
     }
 
     /**
-     * Remembers the first line of every tag that is used inside the given region.
+     * Remembers every line on which a tag is used inside the given region.
      */
-    private static @NotNull Map<String, Integer> collectTagLines(@NotNull String text, int start, int end) {
-        Map<String, Integer> lines = new LinkedHashMap<>();
+    private static @NotNull Map<String, List<Integer>> collectTagLines(@NotNull String text, int start, int end) {
+        Map<String, List<Integer>> lines = new LinkedHashMap<>();
         collectTags(text, start, end, new LinkedHashMap<>(), lines);
         return lines;
     }

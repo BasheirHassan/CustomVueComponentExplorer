@@ -20,8 +20,9 @@ public final class CustomVueComponentExplorerTableModel extends AbstractTableMod
     public static final int COLUMN_TAG = 1;
     public static final int COLUMN_KIND = 2;
     public static final int COLUMN_LOCATION = 3;
-    public static final int COLUMN_USAGES = 4;
-    public static final int COLUMN_RELATION = 5;
+    public static final int COLUMN_LINE = 4;
+    public static final int COLUMN_USAGES = 5;
+    public static final int COLUMN_RELATION = 6;
 
     private final @NotNull Project myProject;
     private final @NotNull List<VueComponentRow> myRows = new ArrayList<>();
@@ -30,6 +31,7 @@ public final class CustomVueComponentExplorerTableModel extends AbstractTableMod
             CustomVueComponentExplorerBundle.message("table.column.tag"),
             CustomVueComponentExplorerBundle.message("table.column.kind"),
             CustomVueComponentExplorerBundle.message("table.column.location"),
+            CustomVueComponentExplorerBundle.message("table.column.line"),
             CustomVueComponentExplorerBundle.message("table.column.usages"),
             CustomVueComponentExplorerBundle.message("table.column.relation")
     };
@@ -81,7 +83,7 @@ public final class CustomVueComponentExplorerTableModel extends AbstractTableMod
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        return columnIndex == COLUMN_USAGES ? Integer.class : String.class;
+        return columnIndex == COLUMN_USAGES || columnIndex == COLUMN_LINE ? Integer.class : String.class;
     }
 
     @Override
@@ -93,6 +95,7 @@ public final class CustomVueComponentExplorerTableModel extends AbstractTableMod
             case COLUMN_TAG -> info.getTag();
             case COLUMN_KIND -> info.getKind().getLabel();
             case COLUMN_LOCATION -> getRelativePath(info);
+            case COLUMN_LINE -> row.getTargetLine() + 1;
             case COLUMN_USAGES -> info.getUsageCount();
             case COLUMN_RELATION -> row.getRelation().getLabel();
             default -> "";

@@ -165,7 +165,35 @@ class ComponentParserTest {
                 </template>
                 """);
 
-        assertEquals(2, parsed.getTagLines().get("app-button"));
+        assertEquals(List.of(2, 3), parsed.getTagLines().get("app-button"));
+        assertEquals(2, parsed.getTagUsages().get("app-button"));
+    }
+
+    @Test
+    void remembersAllUsageLinesOfAComponentUsedSeveralTimes() {
+        ParsedFile parsed = ComponentParser.parseVueFile("app", """
+                <template>
+                  <AppButton label="a" />
+                  <UserCard />
+                  <app-button label="b" />
+                  <AppButton label="c" />
+                </template>
+                """);
+
+        assertEquals(List.of(2, 4, 5), parsed.getTagLines().get("app-button"));
+        assertEquals(3, parsed.getTagUsages().get("app-button"));
+        assertEquals(List.of(3), parsed.getTagLines().get("user-card"));
+    }
+
+    @Test
+    void storesOneLineWhenATagIsUsedTwiceOnTheSameLine() {
+        ParsedFile parsed = ComponentParser.parseVueFile("app", """
+                <template>
+                  <AppButton /><app-button />
+                </template>
+                """);
+
+        assertEquals(List.of(2), parsed.getTagLines().get("app-button"));
         assertEquals(2, parsed.getTagUsages().get("app-button"));
     }
 
