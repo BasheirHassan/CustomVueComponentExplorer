@@ -7,6 +7,7 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionToolbar;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerEvent;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
@@ -16,6 +17,9 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
+import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.ui.DocumentAdapter;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SearchTextField;
@@ -284,6 +288,11 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
         searchByAttribute.addActionListener(event -> searchSelectionByAttribute());
         popup.add(searchByAttribute);
 
+        JMenuItem searchByAttributeInPage = new JMenuItem(CustomVueComponentExplorerBundle.message(
+                "action.searchByAttributeInCurrentPage"));
+        searchByAttributeInPage.addActionListener(event -> searchSelectionByAttributeInCurrentPage());
+        popup.add(searchByAttributeInPage);
+
         popup.addSeparator();
 
         JMenuItem copyTag = new JMenuItem(CustomVueComponentExplorerBundle.message("action.copyTag"));
@@ -448,6 +457,49 @@ public final class CustomVueComponentExplorerPanel extends JPanel implements Dis
             model.setDirectoryName(directory);
             model.setWithSubdirectories(true);
         }
+        FindInProjectManager.getInstance(myProject).findInPath(model);
+    }
+
+    /**
+     * Asks for one or more attribute conditions and searches the selected component inside the page
+     * that is currently open in the editor. The attributes offered by the dialog are the ones that
+     * are actually used on the component in that page.
+     */
+    public void searchSelectionByAttributeInCurrentPage() {
+        VueComponentRow row = getSelectedRow();
+        if (row == null || myOpenFile == null) {
+            return;
+        }
+
+        VueComponentInfo component = row.getComponent();
+        ComponentAttributeSearchDialog dialog = new ComponentAttributeSearchDialog(
+                myProject, component, myService.getAttributesFor(component, myOpenFile),
+                true, myOpenFile.getName());
+        if (!dialog.showAndGet()) {
+            return;
+        }
+
+        List<ComponentAttributeSearchDialog.SearchCondition> conditions = dialog.getConditions();
+        if (conditions.isEmpty()) {
+            return;
+        }
+
+        PsiFile page = ReadAction.computeBlocking(
+                () -> PsiManager.getInstance(myProject).findFile(myOpenFile));
+        if (page == null) {
+            return;
+        }
+
+        FindModel model = createFindModel(
+                buildAttributeSearchPattern(component.getName(), component.getTag(),
+                        conditions, dialog.isMatchAll()));
+        model.setProjectScope(false);
+        model.setDirectoryName(null);
+        model.setModuleName(null);
+        model.setCustomScope(true);
+        model.setCustomScope(new LocalSearchScope(page));
+        model.setCustomScopeName(CustomVueComponentExplorerBundle.message(
+                "find.scope.currentPage", myOpenFile.getName()));
         FindInProjectManager.getInstance(myProject).findInPath(model);
     }
 

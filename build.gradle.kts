@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.customvue.componentexplorer"
-version = "1.4.0"
+version = "1.5.0"
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -58,6 +58,7 @@ intellijPlatform {
                 <li>Navigate to the declaration, copy the tag name or the file path directly from the list.</li>
                 <li>Searches the selected component in the whole project from the context menu.</li>
                 <li>Searches component usages with multiple attribute conditions, optional attribute values and an optional search folder.</li>
+                <li>Searches component usages with attribute conditions inside the page that is currently open as well.</li>
             </ul>
         """
 

@@ -120,6 +120,15 @@ public final class CustomVueComponentExplorerService implements Disposable {
         return myScanner.getAttributesForTag(component.getTag());
     }
 
+    /**
+     * The attributes that are used on the given component inside one file. They are used to
+     * populate the attribute filter of the search that is restricted to the open page.
+     */
+    public @NotNull List<String> getAttributesFor(@NotNull VueComponentInfo component,
+                                                  @NotNull VirtualFile file) {
+        return myScanner.getAttributesForTag(component.getTag(), file);
+    }
+
     private static @NotNull ComponentRelation getRelation(@NotNull VueComponentInfo component,
                                                            @Nullable VirtualFile openFile,
                                                            @Nullable ParsedFile openParsed) {

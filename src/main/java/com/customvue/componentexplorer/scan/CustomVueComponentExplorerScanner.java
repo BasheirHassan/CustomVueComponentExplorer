@@ -122,15 +122,35 @@ public final class CustomVueComponentExplorerScanner {
     public synchronized @NotNull List<String> getAttributesForTag(@NotNull String tag) {
         Set<String> attributes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         for (CachedFile cached : myCache.values()) {
-            List<TagUsage> usages = cached.getParsedFile().getTagOccurrences().get(tag);
-            if (usages == null) {
-                continue;
-            }
-            for (TagUsage usage : usages) {
-                attributes.addAll(usage.getAttributes());
-            }
+            addAttributes(attributes, cached.getParsedFile(), tag);
         }
         return new ArrayList<>(attributes);
+    }
+
+    /**
+     * Collects the attributes that are written on the given tag inside one file only. It is used
+     * to populate the attribute filter of the search that is restricted to the open page.
+     */
+    public synchronized @NotNull List<String> getAttributesForTag(@NotNull String tag,
+                                                                  @NotNull VirtualFile file) {
+        Set<String> attributes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        CachedFile cached = myCache.get(file.getUrl());
+        if (cached != null) {
+            addAttributes(attributes, cached.getParsedFile(), tag);
+        }
+        return new ArrayList<>(attributes);
+    }
+
+    private static void addAttributes(@NotNull Set<String> attributes,
+                                      @NotNull ParsedFile parsedFile,
+                                      @NotNull String tag) {
+        List<TagUsage> usages = parsedFile.getTagOccurrences().get(tag);
+        if (usages == null) {
+            return;
+        }
+        for (TagUsage usage : usages) {
+            attributes.addAll(usage.getAttributes());
+        }
     }
 
     /**

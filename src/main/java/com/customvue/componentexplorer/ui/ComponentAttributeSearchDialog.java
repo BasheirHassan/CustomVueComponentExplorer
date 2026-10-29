@@ -32,8 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Asks for one or more attribute conditions and an optional search folder before searching a
- * component in the whole project.
+ * Asks for one or more attribute conditions before searching a component, either in the whole
+ * project (with an optional search folder) or only in the page that is currently open.
  *
  * <p>The attribute names are collected from the usages of the component, but the combo boxes stay
  * editable so an attribute that is not used yet can be searched as well. The value and the search
@@ -44,6 +44,8 @@ public final class ComponentAttributeSearchDialog extends DialogWrapper {
     private final @Nullable Project myProject;
     private final @NotNull VueComponentInfo myComponent;
     private final @NotNull List<String> myAttributes;
+    private final boolean myCurrentPageOnly;
+    private final @Nullable String myPageName;
     private final @NotNull List<ConditionRow> myConditionRows = new ArrayList<>();
     private final @NotNull JPanel myConditionsPanel = new JPanel(new GridLayout(0, 1, 0, 4));
     private final @NotNull ComboBox<MatchMode> myMatchMode = new ComboBox<>(MatchMode.values());
@@ -53,24 +55,38 @@ public final class ComponentAttributeSearchDialog extends DialogWrapper {
     public ComponentAttributeSearchDialog(@Nullable Project project,
                                           @NotNull VueComponentInfo component,
                                           @NotNull List<String> attributes) {
+        this(project, component, attributes, false, null);
+    }
+
+    public ComponentAttributeSearchDialog(@Nullable Project project,
+                                          @NotNull VueComponentInfo component,
+                                          @NotNull List<String> attributes,
+                                          boolean currentPageOnly,
+                                          @Nullable String pageName) {
         super(project, true);
         myProject = project;
         myComponent = component;
         myAttributes = attributes;
+        myCurrentPageOnly = currentPageOnly;
+        myPageName = pageName;
 
         myMatchMode.setSelectedItem(MatchMode.ALL);
         addConditionRow(attributes.isEmpty() ? null : attributes.get(0));
 
-        FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
-        descriptor.setTitle(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.browseTitle"));
-        descriptor.setDescription(CustomVueComponentExplorerBundle.message(
-                "dialog.attributeSearch.browseDescription"));
-        myDirectoryField.addBrowseFolderListener(new TextBrowseFolderListener(descriptor, project));
-        myDirectoryField.setTextFieldPreferredWidth(45);
-        myDirectoryField.getTextField().setToolTipText(
-                CustomVueComponentExplorerBundle.message("dialog.attributeSearch.scopeHint"));
+        if (!currentPageOnly) {
+            FileChooserDescriptor descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor();
+            descriptor.setTitle(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.browseTitle"));
+            descriptor.setDescription(CustomVueComponentExplorerBundle.message(
+                    "dialog.attributeSearch.browseDescription"));
+            myDirectoryField.addBrowseFolderListener(new TextBrowseFolderListener(descriptor, project));
+            myDirectoryField.setTextFieldPreferredWidth(45);
+            myDirectoryField.getTextField().setToolTipText(
+                    CustomVueComponentExplorerBundle.message("dialog.attributeSearch.scopeHint"));
+        }
 
-        setTitle(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.title"));
+        setTitle(CustomVueComponentExplorerBundle.message(currentPageOnly
+                ? "dialog.attributeSearch.currentPageTitle"
+                : "dialog.attributeSearch.title"));
         setOKButtonText(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.search"));
         init();
     }
@@ -84,23 +100,31 @@ public final class ComponentAttributeSearchDialog extends DialogWrapper {
         addPanel.add(addButton);
 
         JBLabel componentLabel = new JBLabel(myComponent.getName() + " (" + myComponent.getTag() + ")");
-        JBLabel hint = new JBLabel(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.hint"));
-        JBLabel scopeHint = new JBLabel(CustomVueComponentExplorerBundle.message(
-                "dialog.attributeSearch.scopeHint"));
+        JBLabel hint = new JBLabel(CustomVueComponentExplorerBundle.message(myCurrentPageOnly
+                ? "dialog.attributeSearch.currentPageHint"
+                : "dialog.attributeSearch.hint"));
 
-        return FormBuilder.createFormBuilder()
+        FormBuilder builder = FormBuilder.createFormBuilder()
                 .addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
-                        "dialog.attributeSearch.component")), componentLabel)
-                .addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
+                        "dialog.attributeSearch.component")), componentLabel);
+        if (myCurrentPageOnly) {
+            builder.addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
+                            "dialog.attributeSearch.page")),
+                    new JBLabel(myPageName == null ? "" : myPageName));
+        }
+        builder.addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
                         "dialog.attributeSearch.attributes")), myConditionsPanel)
                 .addComponentToRightColumn(addPanel)
                 .addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
-                        "dialog.attributeSearch.match")), myMatchMode)
-                .addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
-                        "dialog.attributeSearch.scope")), myDirectoryField)
-                .addComponentToRightColumn(scopeHint)
-                .addComponentToRightColumn(hint)
-                .getPanel();
+                        "dialog.attributeSearch.match")), myMatchMode);
+        if (!myCurrentPageOnly) {
+            JBLabel scopeHint = new JBLabel(CustomVueComponentExplorerBundle.message(
+                    "dialog.attributeSearch.scopeHint"));
+            builder.addLabeledComponent(new JBLabel(CustomVueComponentExplorerBundle.message(
+                            "dialog.attributeSearch.scope")), myDirectoryField)
+                    .addComponentToRightColumn(scopeHint);
+        }
+        return builder.addComponentToRightColumn(hint).getPanel();
     }
 
     @Override
@@ -110,12 +134,14 @@ public final class ComponentAttributeSearchDialog extends DialogWrapper {
             return;
         }
 
-        String directory = resolveSearchDirectory();
-        if (directory == null) {
-            setErrorText(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.invalidScope"));
-            return;
+        if (!myCurrentPageOnly) {
+            String directory = resolveSearchDirectory();
+            if (directory == null) {
+                setErrorText(CustomVueComponentExplorerBundle.message("dialog.attributeSearch.invalidScope"));
+                return;
+            }
+            mySearchDirectory = directory;
         }
-        mySearchDirectory = directory;
 
         super.doOKAction();
     }
