@@ -82,6 +82,10 @@ public final class ComponentAttributeSearchDialog extends DialogWrapper {
             myDirectoryField.setTextFieldPreferredWidth(45);
             myDirectoryField.getTextField().setToolTipText(
                     CustomVueComponentExplorerBundle.message("dialog.attributeSearch.scopeHint"));
+            if (project != null && project.getBasePath() != null) {
+                // The project folder is the default scope; clearing the field searches the whole project.
+                myDirectoryField.setText(FileUtil.toSystemDependentName(project.getBasePath()));
+            }
         }
 
         setTitle(CustomVueComponentExplorerBundle.message(currentPageOnly
